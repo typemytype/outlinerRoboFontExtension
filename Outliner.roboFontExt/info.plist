@@ -32,13 +32,13 @@
 	<key>timeStamp</key>
 	<real>1331628432.7268109</real>
 	<key>version</key>
-	<string>1.3</string>
+	<string>1.4</string>
 	<key>com.robofontmechanic.Mechanic</key>
 	<dict>
 		<key>repository</key>
 		<string>typemytype/outlinerRoboFontExtension</string>
 		<key>summary</key>
 		<string>Outlines strokes.</string>
-	</dict
+	</dict>
 </dict>
 </plist>
