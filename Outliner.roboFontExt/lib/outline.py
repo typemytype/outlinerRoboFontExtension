@@ -182,6 +182,7 @@ class CleanPointPen(AbstractPointPen):
                 if prevPoint["segmentType"] in ["line", "move"]:
                     angle = MathPoint(data["point"]).angle(MathPoint(prevPoint["point"]))
                     if prevAngle is not None and angle is not None and roundFloat(prevAngle) == roundFloat(angle):
+                        prevPoint["uniqueID"] = id(prevPoint)
                         toRemove.append(prevPoint)
                     prevAngle = angle
                 else:
@@ -745,7 +746,7 @@ class OutlinerPalette(BaseWindowController):
         self.w.optimizeCurve = CheckBox((middle-3, y, middle, 22), "Optimize Curve",
                                    value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "optimizeCurve"), False),
                                    callback=self.parametersTextChanged)
-        y += 30                           
+        y += 30
         self.w.addOriginal = CheckBox((middle-3, y, middle, 22), "Add Source",
                                    value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "addOriginal"), False),
                                    callback=self.parametersTextChanged)
