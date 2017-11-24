@@ -199,7 +199,7 @@ class CleanPointPen(AbstractPointPen):
             pointPen.addPoint(data["point"], **data)
         pointPen.endPath()
 
-    def beginPath(self):
+    def beginPath(self, identifier=None):
         assert self.currentContour is None
         self.currentContour = []
         self.onCurve = []
