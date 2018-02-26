@@ -8,16 +8,23 @@ from lib.tools.bezierTools import curveConverter, roundValue
 
 from mojo.events import addObserver, removeObserver
 from mojo.UI import UpdateCurrentGlyphView
-from mojo.roboFont import OpenWindow
+from mojo.roboFont import OpenWindow, version, CurrentGlyph, CurrentFont
 from mojo.extensions import getExtensionDefault, setExtensionDefault, getExtensionDefaultColor, setExtensionDefaultColor
 
 from fontTools.pens.basePen import BasePen
 from fontTools.misc.bezierTools import splitCubicAtT
-from robofab.pens.pointPen import AbstractPointPen
-from robofab.pens.reverseContourPointPen import ReverseContourPointPen
-from robofab.pens.adapterPens import PointToSegmentPen
 
-from robofab.world import CurrentGlyph, CurrentFont
+# RF3
+if version >= "3.0.0":
+    from ufoLib.pointPen import AbstractPointPen
+    from ufoLib.pointPen import ReverseContourPointPen
+    from ufoLib.pointPen import PointToSegmentPen
+
+# RF1
+else:
+    from robofab.pens.pointPen import AbstractPointPen
+    from robofab.pens.reverseContourPointPen import ReverseContourPointPen
+    from robofab.pens.adapterPens import PointToSegmentPen
 
 from defcon import Glyph
 from math import sqrt, cos, sin, acos, asin, degrees, radians, pi
@@ -59,10 +66,12 @@ def checkInnerOuter(firstAngle, lastAngle):
         return False
 
 
-def interSect((seg1s, seg1e), (seg2s, seg2e)):
+def interSect(seg1, seg2):
+    seg1s, seg1e = seg1
+    seg2s, seg2e = seg2
     denom = (seg2e.y - seg2s.y)*(seg1e.x - seg1s.x) - (seg2e.x - seg2s.x)*(seg1e.y - seg1s.y)
     if roundFloat(denom) == 0:
-        # print 'parallel: %s' % denom
+        # print('parallel: %s' % denom)
         return None
     uanum = (seg2e.x - seg2s.x)*(seg1s.y - seg2s.y) - (seg2e.y - seg2s.y)*(seg1s.x - seg2s.x)
     ubnum = (seg1e.x - seg1s.x)*(seg1s.y - seg2s.y) - (seg1e.y - seg1s.y)*(seg1s.x - seg2s.x)
@@ -73,7 +82,11 @@ def interSect((seg1s, seg1e), (seg2s, seg2e)):
     return MathPoint(x, y)
 
 
-def pointOnACurve((x1, y1), (cx1, cy1), (cx2, cy2), (x2, y2), value):
+def pointOnACurve(p1, c1, c2, p2, value):
+    x1, y1 = p1
+    cx1, cy1 = c1
+    cx2, cy2 = c2
+    x2, y2 = p2
     dx = x1
     cx = (cx1 - dx) * 3.0
     bx = (cx2 - cx1) * 3.0 - cx
@@ -109,7 +122,7 @@ class MathPoint(object):
         for value in [self.x, self.y]:
             yield value
 
-    def __add__(self, p):  # p+ p
+    def __add__(self, p):  # p + p
         if not isinstance(p, self.__class__):
             return self.__class__(self.x + p, self.y + p)
         return self.__class__(self.x + p.x, self.y + p.y)
@@ -124,7 +137,7 @@ class MathPoint(object):
             return self.__class__(self.x * p, self.y * p)
         return self.__class__(self.x * p.x, self.y * p.y)
 
-    def __div__(self, p):
+    def __div__(self, p):  # p / p
         if not isinstance(p, self.__class__):
             return self.__class__(self.x / p, self.y / p)
         return self.__class__(self.x / p.x, self.y / p.y)
@@ -268,7 +281,8 @@ class OutlinePen(BasePen):
 
         self.drawSettings()
 
-    def _moveTo(self, (x, y)):
+    def _moveTo(self, pt):
+        x, y = pt
         if self.offset == 0:
             self.outerPen.moveTo((x, y))
             self.innerPen.moveTo((x, y))
@@ -280,7 +294,8 @@ class OutlinePen(BasePen):
         self.firstPoint = p
         self.shouldHandleMove = True
 
-    def _lineTo(self, (x, y)):
+    def _lineTo(self, pt):
+        x, y = pt
         if self.offset == 0:
             self.outerPen.lineTo((x, y))
             self.innerPen.lineTo((x, y))
@@ -320,25 +335,25 @@ class OutlinePen(BasePen):
         self.prevPoint = currentPoint
         self.prevAngle = self.currentAngle
 
-    def _curveToOne(self, (x1, y1), (x2, y2), (x3, y3)):
+    def _curveToOne(self, pt1, pt2, pt3):
         if self.optimizeCurve:
-            curves = splitCubicAtT(self.prevPoint, (x1, y1), (x2, y2), (x3, y3), .5)
+            curves = splitCubicAtT(self.prevPoint, pt1, pt2, pt3, .5)
         else:
-            curves = [(self.prevPoint, (x1, y1), (x2, y2), (x3, y3))]
+            curves = [(self.prevPoint, pt1, pt2, pt3)]
         for curve in curves:
             p1, h1, h2, p2 = curve
             self._processCurveToOne(h1, h2, p2)
 
-    def _processCurveToOne(self, (x1, y1), (x2, y2), (x3, y3)):
+    def _processCurveToOne(self, pt1, pt2, pt3):
         if self.offset == 0:
-            self.outerPen.curveTo((x1, y1), (x2, y2), (x3, y3))
-            self.innerPen.curveTo((x1, y1), (x2, y2), (x3, y3))
+            self.outerPen.curveTo(pt1, pt2, pt3)
+            self.innerPen.curveTo(pt1, pt2, pt3)
             return
-        self.originalPen.curveTo((x1, y1), (x2, y2), (x3, y3))
+        self.originalPen.curveTo(pt1, pt2, pt3)
 
-        p1 = self.pointClass(x1, y1)
-        p2 = self.pointClass(x2, y2)
-        p3 = self.pointClass(x3, y3)
+        p1 = self.pointClass(*pt1)
+        p2 = self.pointClass(*pt2)
+        p3 = self.pointClass(*pt3)
 
         if p1 == self.prevPoint:
             p1 = pointOnACurve(self.prevPoint, p1, p2, p3, 0.01)
@@ -867,7 +882,13 @@ class OutlinerPalette(BaseWindowController):
                 center = minx2 + w2 * .5, miny2 + h2 * .5
 
                 dummy = RGlyph(result)
-                dummy.scale((s, s), center)
+
+                # RF3
+                if version >= "3.0.0":
+                    dummy.scaleBy((s, s), center)
+                # RF1
+                else:
+                    dummy.scale((s, s), center)
 
         return result
 
