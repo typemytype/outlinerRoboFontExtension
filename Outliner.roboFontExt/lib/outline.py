@@ -15,7 +15,7 @@ from fontTools.pens.basePen import BasePen
 from fontTools.misc.bezierTools import splitCubicAtT
 
 # RF3
-if version >= "3.0.0":
+if version >= "3.0":
     from ufoLib.pointPen import AbstractPointPen
     from ufoLib.pointPen import ReverseContourPointPen
     from ufoLib.pointPen import PointToSegmentPen
@@ -894,7 +894,7 @@ class OutlinerPalette(BaseWindowController):
                 dummy = RGlyph(result)
 
                 # RF3
-                if version >= "3.0.0":
+                if version >= "3.0":
                     dummy.scaleBy((s, s), center)
                 # RF1
                 else:
