@@ -11,7 +11,7 @@ from mojo.UI import UpdateCurrentGlyphView
 from mojo.roboFont import OpenWindow, version, CurrentGlyph, CurrentFont
 from mojo.extensions import getExtensionDefault, setExtensionDefault, getExtensionDefaultColor, setExtensionDefaultColor
 
-from .outlinePen import OutlinePen
+from outlinePen import OutlinePen
 
 outlinePaletteDefaultKey = "com.typemytype.outliner"
 
