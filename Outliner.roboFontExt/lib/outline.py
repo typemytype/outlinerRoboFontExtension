@@ -1,24 +1,131 @@
 from vanilla import *
 from AppKit import *
-from defconAppKit.windows.baseWindow import BaseWindowController
 
 from fontTools.pens.cocoaPen import CocoaPen
 
 from lib.tools.bezierTools import curveConverter, roundValue
 
-from mojo.events import addObserver, removeObserver
-from mojo.UI import UpdateCurrentGlyphView
-from mojo.roboFont import OpenWindow, version, CurrentGlyph, CurrentFont
-from mojo.extensions import getExtensionDefault, setExtensionDefault, getExtensionDefaultColor, setExtensionDefaultColor
+from mojo.roboFont import OpenWindow, CurrentGlyph, CurrentFont
+from mojo.extensions import getExtensionDefault, setExtensionDefault, getExtensionDefaultColor, setExtensionDefaultColor, NSColorToRgba
+from mojo.subscriber import WindowController, Subscriber, registerGlyphEditorSubscriber, unregisterGlyphEditorSubscriber
+from mojo.events import postEvent
 
 from outlinePen import OutlinePen
+
 
 outlinePaletteDefaultKey = "com.typemytype.outliner"
 
 
-class OutlinerPalette(BaseWindowController):
+def calculate(glyph, options, preserveComponents=None):
+    if preserveComponents is not None:
+        options["preserveComponents"] = preserveComponents
 
-    def __init__(self):
+    pen = OutlinePen(
+        glyph.layer,
+        offset=options["offset"],
+        contrast=options["contrast"],
+        contrastAngle=options["contrastAngle"],
+        connection=options["connection"],
+        cap=options["cap"],
+        miterLimit=options["miterLimit"],
+        closeOpenPaths=options["closeOpenPaths"],
+        optimizeCurve=options["optimizeCurve"],
+        preserveComponents=options["preserveComponents"],
+        filterDoubles=options["filterDoubles"]
+    )
+
+    glyph.draw(pen)
+
+    pen.drawSettings(
+        drawOriginal=options["addOriginal"],
+        drawInner=options["addInner"],
+        drawOuter=options["addOuter"]
+    )
+
+    result = pen.getGlyph()
+    if options["keepBounds"]:
+        if glyph.bounds and result.bounds:
+            minx1, miny1, maxx1, maxy1 = glyph.bounds
+            minx2, miny2, maxx2, maxy2 = result.bounds
+
+            h1 = maxy1 - miny1
+
+            w2 = maxx2 - minx2
+            h2 = maxy2 - miny2
+
+            scale = h1 / h2
+            center = minx2 + w2 * .5, miny2 + h2 * .5
+
+            wrapped = result.asFontParts()
+            wrapped.scaleBy((scale, scale), center)
+
+    return result
+
+
+class OutlinerGlyphEditor(Subscriber):
+
+    # debug = True
+
+    controller = None
+
+    def build(self):
+        glyphEditor = self.getGlyphEditor()
+        container = glyphEditor.extensionContainer(outlinePaletteDefaultKey)
+        self.path = container.appendPathSublayer()
+        self.updateDisplay()
+        self.updateOutline()
+
+    def destroy(self):
+        glyphEditor = self.getGlyphEditor()
+        container = glyphEditor.extensionContainer(outlinePaletteDefaultKey)
+        container.clearSublayers()
+
+    def outlinerDidChange(self, info):
+        self.updateOutline()
+
+    def outlinerDisplayDidChanged(self, info):
+        self.updateDisplay()
+
+    def glyphEditorGlyphDidChangeOutline(self, info):
+        self.updateOutline(info["glyph"])
+
+    def updateDisplay(self):
+        if self.controller:
+            displayOptions = self.controller.getDisplayOptions()
+            r, g, b, a = displayOptions["color"]
+            self.path.setVisible(displayOptions["preview"])
+            with self.path.propertyGroup():
+                if displayOptions["shouldFill"]:
+                    self.path.setFillColor((r, g, b, a))
+                else:
+                    self.path.setFillColor(None)
+
+                if displayOptions["shouldStroke"]:
+                    self.path.setStrokeWidth(1)
+                    self.path.setStrokeColor((r, g, b, 1))
+                else:
+                    self.path.setStrokeWidth(0)
+                    self.path.setStrokeColor(None)
+
+    def updateOutline(self, glyph=None):
+        if glyph is None:
+            glyph = self.getGlyphEditor().getGlyph()
+
+        if self.controller:
+            result = calculate(
+                glyph=glyph,
+                options=self.controller.getOptions()
+            )
+            self.path.setPath(result.getRepresentation("merz.CGPath"))
+        else:
+            self.path.setPath(None)
+
+
+class OutlinerPalette(WindowController):
+
+    # debug = True
+
+    def build(self):
         self.w = FloatingWindow((300, 535), "Outline Palette")
 
         y = 5
@@ -27,64 +134,88 @@ class OutlinerPalette(BaseWindowController):
         y += 10
         self.w._tickness = TextBox((0, y - 3, textMiddle, 17), 'Thickness:', alignment="right")
 
-        ticknessValue = getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "thickness"), 10)
+        ticknessValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.offset", 10)
 
-        self.w.tickness = Slider((middle, y, -50, 15),
-                                 minValue=1,
-                                 maxValue=200,
-                                 callback=self.parametersChanged,
-                                 value=ticknessValue)
-        self.w.ticknessText = EditText((-40, y, -10, 17), ticknessValue,
-                                       callback=self.parametersTextChanged,
-                                       sizeStyle="small")
+        self.w.tickness = Slider(
+            (middle, y, -50, 15),
+            minValue=1,
+            maxValue=200,
+            callback=self.parametersChanged,
+            value=ticknessValue
+        )
+        self.w.ticknessText = EditText(
+            (-40, y, -10, 17),
+            ticknessValue,
+            callback=self.parametersTextChanged,
+            sizeStyle="small"
+        )
         y += 33
         self.w._contrast = TextBox((0, y - 3, textMiddle, 17), 'Contrast:', alignment="right")
 
-        contrastValue = getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "contrast"), 0)
+        contrastValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.contrast", 0)
 
-        self.w.contrast = Slider((middle, y, -50, 15),
-                                 minValue=0,
-                                 maxValue=200,
-                                 callback=self.parametersChanged,
-                                 value=contrastValue)
-        self.w.contrastText = EditText((-40, y, -10, 17), contrastValue,
-                                       callback=self.parametersTextChanged,
-                                       sizeStyle="small")
+        self.w.contrast = Slider(
+            (middle, y, -50, 15),
+            minValue=0,
+            maxValue=200,
+            callback=self.parametersChanged,
+            value=contrastValue
+        )
+        self.w.contrastText = EditText(
+            (-40, y, -10, 17),
+            contrastValue,
+            callback=self.parametersTextChanged,
+            sizeStyle="small"
+        )
         y += 33
         self.w._contrastAngle = TextBox((0, y - 3, textMiddle, 17), 'Contrast Angle:', alignment="right")
 
-        contrastAngleValue = getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "contrastAngle"), 0)
+        contrastAngleValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.contrastAngle", 0)
 
-        self.w.contrastAngle = Slider((middle, y - 10, 30, 30),
-                                 minValue=0,
-                                 maxValue=360,
-                                 callback=self.contrastAngleCallback,
-                                 value=contrastValue)
+        self.w.contrastAngle = Slider(
+            (middle, y - 10, 30, 30),
+            minValue=0,
+            maxValue=360,
+            callback=self.contrastAngleCallback,
+            value=contrastAngleValue
+        )
         self.w.contrastAngle.getNSSlider().cell().setSliderType_(NSCircularSlider)
-        self.w.contrastAngleText = EditText((-40, y, -10, 17), contrastAngleValue,
-                                       callback=self.parametersTextChanged,
-                                       sizeStyle="small")
+
+        self.w.contrastAngleText = EditText(
+            (-40, y, -10, 17),
+            contrastAngleValue,
+            callback=self.parametersTextChanged,
+            sizeStyle="small"
+        )
 
         y += 33
 
         self.w._miterLimit = TextBox((0, y - 3, textMiddle, 17), 'MiterLimit:', alignment="right")
 
-        connectmiterLimitValue = getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "connectmiterLimit"), True)
+        connectmiterLimitValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.connectmiterLimit", True)
 
-        self.w.connectmiterLimit = CheckBox((middle-22, y - 3, 20, 17), "",
-                                             callback=self.connectmiterLimit,
-                                             value=connectmiterLimitValue)
+        self.w.connectmiterLimit = CheckBox(
+            (middle-22, y - 3, 20, 17),
+            "",
+            callback=self.connectmiterLimit,
+            value=connectmiterLimitValue
+        )
 
-        miterLimitValue = getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "miterLimit"), 10)
+        miterLimitValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.miterLimit", 10)
 
-        self.w.miterLimit = Slider((middle, y, -50, 15),
-                                    minValue=1,
-                                    maxValue=200,
-                                    callback=self.parametersChanged,
-                                    value=miterLimitValue)
-        self.w.miterLimitText = EditText((-40, y, -10, 17), miterLimitValue,
-                                          callback=self.parametersTextChanged,
-                                          sizeStyle="small")
+        self.w.miterLimit = Slider(
+            (middle, y, -50, 15),
+            minValue=1,
+            maxValue=200,
+            callback=self.parametersChanged,
+            value=miterLimitValue
+        )
+        self.w.miterLimitText = EditText(
+            (-40, y, -10, 17),
+            miterLimitValue,
+            callback=self.parametersTextChanged,
+            sizeStyle="small"
+        )
 
         self.w.miterLimit.enable(not connectmiterLimitValue)
         self.w.miterLimitText.enable(not connectmiterLimitValue)
@@ -99,64 +230,89 @@ class OutlinerPalette(BaseWindowController):
         y += 30
 
         self.w._cap = TextBox((0, y, textMiddle, 17), 'Cap:', alignment="right")
-        useCapValue = getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "closeOpenPath"), False)
-        self.w.useCap = CheckBox((middle - 22, y, 20, 17), "",
-                                             callback=self.useCapCallback,
-                                             value=useCapValue)
+        useCapValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.closeOpenPath", False)
+        self.w.useCap = CheckBox(
+            (middle - 22, y, 20, 17),
+            "",
+            callback=self.useCapCallback,
+            value=useCapValue
+        )
         self.w.cap = PopUpButton((middle - 2, y - 2, -48, 22), cornerAndCap, callback=self.parametersTextChanged)
         self.w.cap.enable(useCapValue)
 
-        cornerValue = getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "corner"), "Square")
+        cornerValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.corner", "Square")
         if cornerValue in cornerAndCap:
             self.w.corner.set(cornerAndCap.index(cornerValue))
 
-        capValue = getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "cap"), "Square")
+        capValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.cap", "Square")
         if capValue in cornerAndCap:
             self.w.cap.set(cornerAndCap.index(capValue))
 
         y += 33
 
-        self.w.keepBounds = CheckBox((middle - 3, y, middle, 22), "Keep Bounds",
-                                   value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "keepBounds"), False),
-                                   callback=self.parametersTextChanged)
+        self.w.keepBounds = CheckBox(
+            (middle - 3, y, middle, 22),
+            "Keep Bounds",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.keepBounds", False),
+            callback=self.parametersTextChanged
+        )
         y += 30
-        self.w.optimizeCurve = CheckBox((middle - 3, y, middle, 22), "Optimize Curve",
-                                   value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "optimizeCurve"), False),
-                                   callback=self.parametersTextChanged)
+        self.w.optimizeCurve = CheckBox(
+            (middle - 3, y, middle, 22),
+            "Optimize Curve",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.optimizeCurve", False),
+            callback=self.parametersTextChanged
+        )
         y += 30
-        self.w.addOriginal = CheckBox((middle - 3, y, middle, 22), "Add Source",
-                                   value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "addOriginal"), False),
-                                   callback=self.parametersTextChanged)
+        self.w.addOriginal = CheckBox(
+            (middle - 3, y, middle, 22),
+            "Add Source",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.addOriginal", False),
+            callback=self.parametersTextChanged
+        )
         y += 30
-        self.w.addInner = CheckBox((middle - 3, y, middle, 22), "Add Left",
-                                   value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "addLeft"), True),
-                                   callback=self.parametersTextChanged)
+        self.w.addInner = CheckBox(
+            (middle - 3, y, middle, 22),
+            "Add Left",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.addInner", True),
+            callback=self.parametersTextChanged
+        )
         y += 30
-        self.w.addOuter = CheckBox((middle - 3, y, middle, 22), "Add Right",
-                                   value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "addRight"), True),
-                                   callback=self.parametersTextChanged)
-
+        self.w.addOuter = CheckBox(
+            (middle - 3, y, middle, 22),
+            "Add Right",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.addOuter", True),
+            callback=self.parametersTextChanged
+        )
         y += 35
-
-        self.w.preview = CheckBox((middle - 3, y, middle, 22), "Preview",
-                               value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "preview"), True),
-                               callback=self.previewCallback)
+        self.w.preview = CheckBox(
+            (middle - 3, y, middle, 22),
+            "Preview",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.preview", True),
+            callback=self.previewCallback
+        )
         y += 30
-        self.w.fill = CheckBox((middle - 3 + 10, y, middle, 22), "Fill",
-                               value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "fill"), False),
-                               callback=self.fillCallback, sizeStyle="small")
+        self.w.fill = CheckBox(
+            (middle - 3 + 10, y, middle, 22),
+            "Fill",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.fill", False),
+            callback=self.fillCallback, sizeStyle="small"
+        )
         y += 25
-        self.w.stroke = CheckBox((middle - 3 + 10, y, middle, 22), "Stroke",
-                               value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "stroke"), True),
-                               callback=self.strokeCallback, sizeStyle="small")
+        self.w.stroke = CheckBox(
+            (middle - 3 + 10, y, middle, 22),
+            "Stroke",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.stroke", True),
+            callback=self.strokeCallback, sizeStyle="small"
+        )
 
         color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0, 1, 1, .8)
 
-        self.w.color = ColorWell(((middle - 5) * 1.7, y - 33, -10, 60),
-                                 color=getExtensionDefaultColor("%s.%s" % (outlinePaletteDefaultKey, "color"), color),
-                                 callback=self.colorCallback)
-
-        self.previewCallback(self.w.preview)
+        self.w.color = ColorWell(
+            ((middle - 5) * 1.7, y - 33, -10, 60),
+            color=getExtensionDefaultColor(f"{outlinePaletteDefaultKey}.color", color),
+            callback=self.colorCallback
+        )
 
         b = -80
         self.w.apply = Button((-70, b, -10, 22), "Expand", self.expand, sizeStyle="small")
@@ -164,123 +320,80 @@ class OutlinerPalette(BaseWindowController):
         self.w.applySelection = Button((-290, b, -200, 22), "Expand Font", self.expandFont, sizeStyle="small")
 
         b += 30
-        self.w.preserveComponents = CheckBox((10, b, -10, 22), "Preserve Components", sizeStyle="small",
-                                value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "preserveComponents"), False),
-                                callback=self.parametersTextChanged)
+        self.w.preserveComponents = CheckBox(
+            (10, b, -10, 22),
+            "Preserve Components",
+            sizeStyle="small",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.preserveComponents", False),
+            callback=self.parametersTextChanged
+        )
         b += 25
-        self.w.filterDoubles = CheckBox((10, b, -10, 22), "Filter Double points", sizeStyle="small",
-                                value=getExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "filterDoubles"), True),
-                                callback=self.parametersTextChanged)
-        self.setUpBaseWindowBehavior()
+        self.w.filterDoubles = CheckBox(
+            (10, b, -10, 22),
+            "Filter Double points",
+            sizeStyle="small",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.filterDoubles", True),
+            callback=self.parametersTextChanged
+        )
 
-        addObserver(self, "drawOutline", "drawBackground")
-        self.parametersTextChanged
         self.w.open()
 
-    def windowCloseCallback(self, sender):
-        removeObserver(self, "drawBackground")
-        self.updateView()
-        super(OutlinerPalette, self).windowCloseCallback(sender)
+    def started(self):
+        OutlinerGlyphEditor.controller = self
+        registerGlyphEditorSubscriber(OutlinerGlyphEditor)
 
-    def drawOutline(self, info):
-        if not self.w.preview.get():
-            return
-        outline = self.calculate(glyph=info["glyph"].naked())
-        pen = CocoaPen(None)
-        outline.draw(pen)
+    # def destroy(self):
+    def windowWillClose(self, sender):
+        unregisterGlyphEditorSubscriber(OutlinerGlyphEditor)
+        OutlinerGlyphEditor.controller = None
 
-        self.w.color.get().set()
-        if self.w.fill.get():
-            pen.path.fill()
+    def getOptions(self):
+        return dict(
+            offset=int(self.w.tickness.get()),
+            contrast=int(self.w.contrast.get()),
+            contrastAngle=int(self.w.contrastAngle.get()),
+            keepBounds=self.w.keepBounds.get(),
+            preserveComponents=bool(self.w.preserveComponents.get()),
+            filterDoubles=bool(self.w.filterDoubles.get()),
+            connection=self.w.corner.getItems()[self.w.corner.get()],
+            cap=self.w.cap.getItems()[self.w.cap.get()],
+            closeOpenPaths=self.w.useCap.get(),
+            miterLimit=int(self.w.miterLimit.get()),
+            optimizeCurve=self.w.optimizeCurve.get(),
+            addOriginal=self.w.addOriginal.get(),
+            addInner=self.w.addInner.get(),
+            addOuter=self.w.addOuter.get(),
+        )
 
-        if self.w.stroke.get():
-            pen.path.setLineWidth_(info["scale"])
-            pen.path.stroke()
+    def getDisplayOptions(self):
+        return dict(
+            preview=self.w.preview.get(),
+            shouldFill=self.w.fill.get(),
+            shouldStroke=self.w.stroke.get(),
+            color=NSColorToRgba(self.w.color.get())
+        )
 
-    def calculate(self, glyph, preserveComponents=False):
-        tickness = self.w.tickness.get()
-        contrast = self.w.contrast.get()
-        contrastAngle = self.w.contrastAngle.get()
-        keepBounds = self.w.keepBounds.get()
-        optimizeCurve = self.w.optimizeCurve.get()
-        filterDoubles = self.w.filterDoubles.get()
-        if self.w.connectmiterLimit.get():
-            miterLimit = None
-        else:
-            miterLimit = self.w.miterLimit.get()
-
-        corner = self.w.corner.getItems()[self.w.corner.get()]
-        cap = self.w.cap.getItems()[self.w.cap.get()]
-
-        closeOpenPaths = self.w.useCap.get()
-
-        drawOriginal = self.w.addOriginal.get()
-        drawInner = self.w.addInner.get()
-        drawOuter = self.w.addOuter.get()
-
-        pen = OutlinePen(glyph.getParent(),
-                            tickness,
-                            contrast,
-                            contrastAngle,
-                            connection=corner,
-                            cap=cap,
-                            miterLimit=miterLimit,
-                            closeOpenPaths=closeOpenPaths,
-                            optimizeCurve=optimizeCurve,
-                            preserveComponents=preserveComponents,
-                            filterDoubles=filterDoubles)
-
-        glyph.draw(pen)
-
-        pen.drawSettings(drawOriginal=drawOriginal,
-                         drawInner=drawInner,
-                         drawOuter=drawOuter)
-
-        result = pen.getGlyph()
-        if keepBounds:
-            if glyph.bounds and result.bounds:
-                minx1, miny1, maxx1, maxy1 = glyph.bounds
-                minx2, miny2, maxx2, maxy2 = result.bounds
-
-                h1 = maxy1 - miny1
-
-                w2 = maxx2 - minx2
-                h2 = maxy2 - miny2
-
-                s = h1 / h2
-
-                center = minx2 + w2 * .5, miny2 + h2 * .5
-
-                dummy = RGlyph(result)
-
-                # RF3
-                if version >= "3.0":
-                    dummy.scaleBy((s, s), center)
-                # RF1
-                else:
-                    dummy.scale((s, s), center)
-
-        return result
+    # control callbacks
 
     def connectmiterLimit(self, sender):
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "connectmiterLimit"), sender.get())
+        setExtensionDefault(f"{outlinePaletteDefaultKey}.connectmiterLimit", sender.get())
         value = not sender.get()
         self.w.miterLimit.enable(value)
         self.w.miterLimitText.enable(value)
-        self.parametersChanged(sender)
+        self.parametersChanged()
 
     def useCapCallback(self, sender):
         value = sender.get()
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "closeOpenPath"), value)
+        setExtensionDefault(f"{outlinePaletteDefaultKey}.closeOpenPath", value)
         self.w.cap.enable(value)
-        self.parametersChanged(sender)
+        self.parametersChanged()
 
     def contrastAngleCallback(self, sender):
         if NSEvent.modifierFlags() & NSShiftKeyMask:
             value = sender.get()
             value = roundValue(value, 45)
             sender.set(value)
-        self.parametersChanged(sender)
+        self.parametersChanged()
 
     def parametersTextChanged(self, sender):
         value = sender.get()
@@ -290,77 +403,50 @@ class OutlinerPalette(BaseWindowController):
             value = 10
             sender.set(value)
 
-        tickness = int(self.w.ticknessText.get())
-        self.w.tickness.set(tickness)
-        contrast = int(self.w.contrastText.get())
-        self.w.contrast.set(contrast)
-        contrastAngle = int(self.w.contrastAngleText.get())
-        self.w.contrastAngle.set(contrastAngle)
-        self.parametersChanged(sender)
+        self.w.tickness.set(int(self.w.ticknessText.get()))
+        self.w.contrast.set(int(self.w.contrastText.get()))
+        self.w.contrastAngle.set(int(self.w.contrastAngleText.get()))
+        self.parametersChanged()
 
     def parametersChanged(self, sender=None, glyph=None):
-        tickness = int(self.w.tickness.get())
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "thickness"), tickness)
-        contrast = int(self.w.contrast.get())
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "contrast"), contrast)
-        contrastAngle = int(self.w.contrastAngle.get())
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "contrastAngle"), contrastAngle)
-        keepBounds = self.w.keepBounds.get()
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "keepBounds"), keepBounds)
-        preserveComponents = bool(self.w.preserveComponents.get())
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "preserveComponents"), preserveComponents)
-        filterDoubles = bool(self.w.filterDoubles.get())
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "filterDoubles"), filterDoubles)
-
-        miterLimit = int(self.w.miterLimit.get())
+        options = self.getOptions()
         if self.w.connectmiterLimit.get():
-            miterLimit = tickness
-            self.w.miterLimit.set(miterLimit)
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "miterLimit"), miterLimit)
+            self.w.miterLimit.set(options["offset"])
 
-        corner = self.w.corner.getItems()[self.w.corner.get()]
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "corner"), corner )
+        for key, value in options.items():
+            setExtensionDefault(f"{outlinePaletteDefaultKey}.{key}", value)
 
-        cap = self.w.cap.getItems()[self.w.cap.get()]
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "cap"), cap )
+        self.w.ticknessText.set(f"{options['offset']}")
+        self.w.contrastText.set(f"{options['contrast']}")
+        self.w.contrastAngleText.set(f"{options['contrastAngle']}")
+        self.w.miterLimitText.set(f"{options['miterLimit']}")
 
-        drawOriginal = self.w.addOriginal.get()
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "addOriginal"), drawOriginal)
+        postEvent("com.typemytype.outliner.changed")
 
-        drawInner = self.w.addInner.get()
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "addLeft"), drawInner)
-
-        drawOuter = self.w.addOuter.get()
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "addRight"), drawOuter)
-
-        self.w.ticknessText.set("%i" % tickness)
-        self.w.contrastText.set("%i" % contrast)
-        self.w.contrastAngleText.set("%i" % contrastAngle)
-        self.w.miterLimitText.set("%i" % miterLimit)
-        self.updateView()
+    def displayParametersChanged(self):
+        postEvent("com.typemytype.outliner.displayChanged")
 
     def previewCallback(self, sender):
         value = sender.get()
         self.w.fill.enable(value)
         self.w.stroke.enable(value)
         self.w.color.enable(value)
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "preview"), value)
-        self.updateView()
+        setExtensionDefault(f"{outlinePaletteDefaultKey}.preview", value)
+        self.displayParametersChanged()
 
     def colorCallback(self, sender):
-        setExtensionDefaultColor("%s.%s" % (outlinePaletteDefaultKey, "color"), sender.get())
-        self.updateView()
+        setExtensionDefaultColor(f"{outlinePaletteDefaultKey}.color", sender.get())
+        self.displayParametersChanged()
 
     def fillCallback(self, sender):
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "fill"), sender.get()),
-        self.updateView()
+        setExtensionDefault(f"{outlinePaletteDefaultKey}.fill", sender.get()),
+        self.displayParametersChanged()
 
     def strokeCallback(self, sender):
-        setExtensionDefault("%s.%s" % (outlinePaletteDefaultKey, "stroke"), sender.get()),
-        self.updateView()
+        setExtensionDefault(f"{outlinePaletteDefaultKey}.stroke", sender.get()),
+        self.displayParametersChanged()
 
-    def updateView(self, sender=None):
-        UpdateCurrentGlyphView()
+    # buttons callbacks
 
     def expand(self, sender):
         glyph = CurrentGlyph()
@@ -370,22 +456,12 @@ class OutlinerPalette(BaseWindowController):
         self.previewCallback(self.w.preview)
 
     def expandGlyph(self, glyph, preserveComponents=True):
-        defconGlyph = glyph.naked()
-
         glyph.prepareUndo("Outline")
 
-        isQuad = curveConverter.isQuadratic(defconGlyph)
-
-        if isQuad:
-            curveConverter.quadratic2bezier(defconGlyph)
-
-        outline = self.calculate(defconGlyph, preserveComponents)
+        outline = calculate(glyph, self.getOptions(), preserveComponents)
 
         glyph.clearContours()
         outline.drawPoints(glyph.getPointPen())
-
-        if isQuad:
-            curveConverter.bezier2quadratic(defconGlyph)
 
         glyph.round()
         glyph.performUndo()

@@ -26,19 +26,12 @@
 	<key>name</key>
 	<string>Outliner</string>
 	<key>requiresVersionMajor</key>
-	<string>1</string>
+	<string>0</string>
 	<key>requiresVersionMinor</key>
-	<string>3</string>
+	<string>4</string>
 	<key>timeStamp</key>
 	<real>1555352410.361658</real>
 	<key>version</key>
-	<string>1.4.4</string>
-	<key>com.robofontmechanic.Mechanic</key>
-	<dict>
-		<key>repository</key>
-		<string>typemytype/outlinerRoboFontExtension</string>
-		<key>summary</key>
-		<string>Outlines strokes.</string>
-	</dict>
+	<string>2.0</string>
 </dict>
 </plist>
