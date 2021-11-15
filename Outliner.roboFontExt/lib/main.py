@@ -10,7 +10,7 @@ registerSubscriberEvent(
     dispatcher="roboFont",
     documentation="Send when the outliner pallette did change parameters.",
     delay=0,
-    # debug=True
+    debug=True
 )
 
 registerSubscriberEvent(
@@ -19,5 +19,5 @@ registerSubscriberEvent(
     lowLevelEventNames=["com.typemytype.outliner.displayChanged"],
     dispatcher="roboFont",
     documentation="Send when the outliner pallette did change display options.",
-    # debug=True
+    debug=True
 )
