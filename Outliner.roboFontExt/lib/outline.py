@@ -1,5 +1,5 @@
-from vanilla import *
-from AppKit import *
+import vanilla
+import AppKit
 
 from fontTools.pens.cocoaPen import CocoaPen
 
@@ -126,62 +126,62 @@ class OutlinerPalette(WindowController):
     # debug = True
 
     def build(self):
-        self.w = FloatingWindow((300, 535), "Outline Palette")
+        self.w = vanilla.FloatingWindow((300, 535), "Outline Palette")
 
         y = 5
         middle = 135
         textMiddle = middle - 27
         y += 10
-        self.w._tickness = TextBox((0, y - 3, textMiddle, 17), 'Thickness:', alignment="right")
+        self.w._tickness = vanilla.TextBox((0, y - 3, textMiddle, 17), 'Thickness:', alignment="right")
 
         ticknessValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.offset", 10)
 
-        self.w.tickness = Slider(
+        self.w.tickness = vanilla.Slider(
             (middle, y, -50, 15),
             minValue=1,
             maxValue=200,
             callback=self.parametersChanged,
             value=ticknessValue
         )
-        self.w.ticknessText = EditText(
+        self.w.ticknessText = vanilla.EditText(
             (-40, y, -10, 17),
             ticknessValue,
             callback=self.parametersTextChanged,
             sizeStyle="small"
         )
         y += 33
-        self.w._contrast = TextBox((0, y - 3, textMiddle, 17), 'Contrast:', alignment="right")
+        self.w._contrast = vanilla.TextBox((0, y - 3, textMiddle, 17), 'Contrast:', alignment="right")
 
         contrastValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.contrast", 0)
 
-        self.w.contrast = Slider(
+        self.w.contrast = vanilla.Slider(
             (middle, y, -50, 15),
             minValue=0,
             maxValue=200,
             callback=self.parametersChanged,
             value=contrastValue
         )
-        self.w.contrastText = EditText(
+        self.w.contrastText = vanilla.EditText(
             (-40, y, -10, 17),
             contrastValue,
             callback=self.parametersTextChanged,
             sizeStyle="small"
         )
         y += 33
-        self.w._contrastAngle = TextBox((0, y - 3, textMiddle, 17), 'Contrast Angle:', alignment="right")
+        self.w._contrastAngle = vanilla.TextBox((0, y - 3, textMiddle, 17), 'Contrast Angle:', alignment="right")
 
         contrastAngleValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.contrastAngle", 0)
 
-        self.w.contrastAngle = Slider(
+        self.w.contrastAngle = vanilla.Slider(
             (middle, y - 10, 30, 30),
             minValue=0,
             maxValue=360,
             callback=self.contrastAngleCallback,
             value=contrastAngleValue
         )
-        self.w.contrastAngle.getNSSlider().cell().setSliderType_(NSCircularSlider)
+        self.w.contrastAngle.getNSSlider().cell().setSliderType_(AppKit.NSCircularSlider)
 
-        self.w.contrastAngleText = EditText(
+        self.w.contrastAngleText = vanilla.EditText(
             (-40, y, -10, 17),
             contrastAngleValue,
             callback=self.parametersTextChanged,
@@ -190,11 +190,11 @@ class OutlinerPalette(WindowController):
 
         y += 33
 
-        self.w._miterLimit = TextBox((0, y - 3, textMiddle, 17), 'MiterLimit:', alignment="right")
+        self.w._miterLimit = vanilla.TextBox((0, y - 3, textMiddle, 17), 'MiterLimit:', alignment="right")
 
         connectmiterLimitValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.connectmiterLimit", True)
 
-        self.w.connectmiterLimit = CheckBox(
+        self.w.connectmiterLimit = vanilla.CheckBox(
             (middle-22, y - 3, 20, 17),
             "",
             callback=self.connectmiterLimit,
@@ -203,14 +203,14 @@ class OutlinerPalette(WindowController):
 
         miterLimitValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.miterLimit", 10)
 
-        self.w.miterLimit = Slider(
+        self.w.miterLimit = vanilla.Slider(
             (middle, y, -50, 15),
             minValue=1,
             maxValue=200,
             callback=self.parametersChanged,
             value=miterLimitValue
         )
-        self.w.miterLimitText = EditText(
+        self.w.miterLimitText = vanilla.EditText(
             (-40, y, -10, 17),
             miterLimitValue,
             callback=self.parametersTextChanged,
@@ -224,20 +224,20 @@ class OutlinerPalette(WindowController):
 
         cornerAndCap = ["Square", "Round", "Butt"]
 
-        self.w._corner = TextBox((0, y, textMiddle, 17), 'Corner:', alignment="right")
-        self.w.corner = PopUpButton((middle - 2, y - 2, -48, 22), cornerAndCap, callback=self.parametersTextChanged)
+        self.w._corner = vanilla.TextBox((0, y, textMiddle, 17), 'Corner:', alignment="right")
+        self.w.corner = vanilla.PopUpButton((middle - 2, y - 2, -48, 22), cornerAndCap, callback=self.parametersTextChanged)
 
         y += 30
 
-        self.w._cap = TextBox((0, y, textMiddle, 17), 'Cap:', alignment="right")
+        self.w._cap = vanilla.TextBox((0, y, textMiddle, 17), 'Cap:', alignment="right")
         useCapValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.closeOpenPath", False)
-        self.w.useCap = CheckBox(
+        self.w.useCap = vanilla.CheckBox(
             (middle - 22, y, 20, 17),
             "",
             callback=self.useCapCallback,
             value=useCapValue
         )
-        self.w.cap = PopUpButton((middle - 2, y - 2, -48, 22), cornerAndCap, callback=self.parametersTextChanged)
+        self.w.cap = vanilla.PopUpButton((middle - 2, y - 2, -48, 22), cornerAndCap, callback=self.parametersTextChanged)
         self.w.cap.enable(useCapValue)
 
         cornerValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.corner", "Square")
@@ -250,77 +250,77 @@ class OutlinerPalette(WindowController):
 
         y += 33
 
-        self.w.keepBounds = CheckBox(
+        self.w.keepBounds = vanilla.CheckBox(
             (middle - 3, y, middle, 22),
             "Keep Bounds",
             value=getExtensionDefault(f"{outlinePaletteDefaultKey}.keepBounds", False),
             callback=self.parametersTextChanged
         )
         y += 30
-        self.w.optimizeCurve = CheckBox(
+        self.w.optimizeCurve = vanilla.CheckBox(
             (middle - 3, y, middle, 22),
             "Optimize Curve",
             value=getExtensionDefault(f"{outlinePaletteDefaultKey}.optimizeCurve", False),
             callback=self.parametersTextChanged
         )
         y += 30
-        self.w.addOriginal = CheckBox(
+        self.w.addOriginal = vanilla.CheckBox(
             (middle - 3, y, middle, 22),
             "Add Source",
             value=getExtensionDefault(f"{outlinePaletteDefaultKey}.addOriginal", False),
             callback=self.parametersTextChanged
         )
         y += 30
-        self.w.addInner = CheckBox(
+        self.w.addInner = vanilla.CheckBox(
             (middle - 3, y, middle, 22),
             "Add Left",
             value=getExtensionDefault(f"{outlinePaletteDefaultKey}.addInner", True),
             callback=self.parametersTextChanged
         )
         y += 30
-        self.w.addOuter = CheckBox(
+        self.w.addOuter = vanilla.CheckBox(
             (middle - 3, y, middle, 22),
             "Add Right",
             value=getExtensionDefault(f"{outlinePaletteDefaultKey}.addOuter", True),
             callback=self.parametersTextChanged
         )
         y += 35
-        self.w.preview = CheckBox(
+        self.w.preview = vanilla.CheckBox(
             (middle - 3, y, middle, 22),
             "Preview",
             value=getExtensionDefault(f"{outlinePaletteDefaultKey}.preview", True),
             callback=self.previewCallback
         )
         y += 30
-        self.w.fill = CheckBox(
+        self.w.fill = vanilla.CheckBox(
             (middle - 3 + 10, y, middle, 22),
             "Fill",
             value=getExtensionDefault(f"{outlinePaletteDefaultKey}.fill", False),
             callback=self.fillCallback, sizeStyle="small"
         )
         y += 25
-        self.w.stroke = CheckBox(
+        self.w.stroke = vanilla.CheckBox(
             (middle - 3 + 10, y, middle, 22),
             "Stroke",
             value=getExtensionDefault(f"{outlinePaletteDefaultKey}.stroke", True),
             callback=self.strokeCallback, sizeStyle="small"
         )
 
-        color = NSColor.colorWithCalibratedRed_green_blue_alpha_(0, 1, 1, .8)
+        color = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(0, 1, 1, .8)
 
-        self.w.color = ColorWell(
+        self.w.color = vanilla.ColorWell(
             ((middle - 5) * 1.7, y - 33, -10, 60),
             color=getExtensionDefaultColor(f"{outlinePaletteDefaultKey}.color", color),
             callback=self.colorCallback
         )
 
         b = -80
-        self.w.apply = Button((-70, b, -10, 22), "Expand", self.expand, sizeStyle="small")
-        self.w.applyNewFont = Button((-190, b, -80, 22), "Expand Selection", self.expandSelection, sizeStyle="small")
-        self.w.applySelection = Button((-290, b, -200, 22), "Expand Font", self.expandFont, sizeStyle="small")
+        self.w.apply = vanilla.Button((-70, b, -10, 22), "Expand", self.expand, sizeStyle="small")
+        self.w.applyNewFont = vanilla.Button((-190, b, -80, 22), "Expand Selection", self.expandSelection, sizeStyle="small")
+        self.w.applySelection = vanilla.Button((-290, b, -200, 22), "Expand Font", self.expandFont, sizeStyle="small")
 
         b += 30
-        self.w.preserveComponents = CheckBox(
+        self.w.preserveComponents = vanilla.CheckBox(
             (10, b, -10, 22),
             "Preserve Components",
             sizeStyle="small",
@@ -328,7 +328,7 @@ class OutlinerPalette(WindowController):
             callback=self.parametersTextChanged
         )
         b += 25
-        self.w.filterDoubles = CheckBox(
+        self.w.filterDoubles = vanilla.CheckBox(
             (10, b, -10, 22),
             "Filter Double points",
             sizeStyle="small",
@@ -389,7 +389,7 @@ class OutlinerPalette(WindowController):
         self.parametersChanged()
 
     def contrastAngleCallback(self, sender):
-        if NSEvent.modifierFlags() & NSShiftKeyMask:
+        if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
             value = sender.get()
             value = roundValue(value, 45)
             sender.set(value)
