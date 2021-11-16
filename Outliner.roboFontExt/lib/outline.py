@@ -1,5 +1,5 @@
 from vanilla import *
-from AppKit import *
+from AppKit import NSColor, NSCircularSlider, NSEvent, NSShiftKeyMask
 from defconAppKit.windows.baseWindow import BaseWindowController
 
 from fontTools.pens.cocoaPen import CocoaPen
