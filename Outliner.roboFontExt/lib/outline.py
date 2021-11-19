@@ -56,7 +56,7 @@ def calculate(glyph, options, preserveComponents=None):
             scale = h1 / h2
             center = minx2 + w2 * .5, miny2 + h2 * .5
 
-            wrapped = result.asFontParts()
+            wrapped = RGlyph(result)
             wrapped.scaleBy((scale, scale), center)
 
     return result
