@@ -1,9 +1,7 @@
 import vanilla
 import AppKit
 
-from fontTools.pens.cocoaPen import CocoaPen
-
-from lib.tools.bezierTools import curveConverter, roundValue
+from lib.tools.bezierTools import roundValue
 
 from mojo.roboFont import OpenWindow, CurrentGlyph, CurrentFont
 from mojo.extensions import getExtensionDefault, setExtensionDefault, getExtensionDefaultColor, setExtensionDefaultColor, NSColorToRgba

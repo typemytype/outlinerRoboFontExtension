@@ -1,5 +1,3 @@
-from mojo.roboFont import version
-
 from fontTools.pens.basePen import BasePen
 from fontTools.misc.bezierTools import splitCubicAtT
 
