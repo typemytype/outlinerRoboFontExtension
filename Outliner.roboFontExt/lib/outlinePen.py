@@ -1,19 +1,10 @@
-from mojo.roboFont import version
-
 from fontTools.pens.basePen import BasePen
 from fontTools.misc.bezierTools import splitCubicAtT
 
-# RF3
-if version >= "3.0":
-    from fontTools.pens.pointPen import AbstractPointPen
-    from fontTools.pens.pointPen import ReverseContourPointPen
-    from fontTools.pens.pointPen import PointToSegmentPen
+from fontTools.pens.pointPen import AbstractPointPen
+from fontTools.pens.pointPen import ReverseContourPointPen
+from fontTools.pens.pointPen import PointToSegmentPen
 
-# RF1
-else:
-    from robofab.pens.pointPen import AbstractPointPen
-    from robofab.pens.reverseContourPointPen import ReverseContourPointPen
-    from robofab.pens.adapterPens import PointToSegmentPen
 
 from defcon import Glyph
 from math import sqrt, cos, sin, acos, asin, degrees, radians, pi
