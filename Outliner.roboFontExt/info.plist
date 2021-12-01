@@ -26,9 +26,9 @@
 	<key>name</key>
 	<string>Outliner</string>
 	<key>requiresVersionMajor</key>
-	<string>0</string>
-	<key>requiresVersionMinor</key>
 	<string>4</string>
+	<key>requiresVersionMinor</key>
+	<string>0</string>
 	<key>timeStamp</key>
 	<real>1555352410.361658</real>
 	<key>version</key>
