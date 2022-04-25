@@ -525,7 +525,10 @@ class OutlinePen(BasePen):
 
         radius = centerPoint.distance(first)
         D = radius * (1 - cos(angle_half))
-        handleLength = (4 * D / 3) / sin(angle_half)  # length of the bcp line
+        if sin(angle_half) == 0:
+            handleLength = 0
+        else:
+            handleLength = (4 * D / 3) / sin(angle_half)  # length of the bcp line
 
         bcp1 = first - self.pointClass(cos(angle_1), sin(angle_1)) * handleLength
         bcp2 = last + self.pointClass(cos(angle_2), sin(angle_2)) * handleLength
