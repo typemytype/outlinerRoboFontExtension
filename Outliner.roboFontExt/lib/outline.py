@@ -84,6 +84,9 @@ class OutlinerGlyphEditor(Subscriber):
     def outlinerDisplayDidChanged(self, info):
         self.updateDisplay()
 
+    def glyphEditorDidSetGlyph(self, info):
+        self.updateOutline(info["glyph"])
+
     def glyphEditorGlyphDidChangeOutline(self, info):
         self.updateOutline(info["glyph"])
 
