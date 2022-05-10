@@ -127,7 +127,7 @@ class OutlinerPalette(WindowController):
     # debug = True
 
     def build(self):
-        self.w = vanilla.FloatingWindow((300, 535), "Outline Palette")
+        self.w = vanilla.FloatingWindow((300, 560), "Outline Palette")
 
         y = 5
         middle = 135
@@ -315,12 +315,28 @@ class OutlinerPalette(WindowController):
             callback=self.colorCallback
         )
 
-        b = -80
+        b = -105
         self.w.apply = vanilla.Button((-70, b, -10, 22), "Expand", self.expand, sizeStyle="small")
         self.w.applyNewFont = vanilla.Button((-190, b, -80, 22), "Expand Selection", self.expandSelection, sizeStyle="small")
         self.w.applySelection = vanilla.Button((-290, b, -200, 22), "Expand Font", self.expandFont, sizeStyle="small")
 
         b += 30
+        self.w.expandInLayer = vanilla.CheckBox(
+            (10, b, -10, 22),
+            "Expand In Layer",
+            sizeStyle="small",
+            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.expandInLayer", False),
+            callback=self.expandChangedCallback
+        )
+        self.w.expandLayerName = vanilla.EditText(
+            (120, b, 100, 18),
+            getExtensionDefault(f"{outlinePaletteDefaultKey}.expandLayerName", "outlined"),
+            sizeStyle="small",
+            callback=self.expandChangedCallback
+        )
+        self.w.expandLayerName.enable(getExtensionDefault(f"{outlinePaletteDefaultKey}.expandInLayer", False))
+
+        b += 25
         self.w.preserveComponents = vanilla.CheckBox(
             (10, b, -10, 22),
             "Preserve Components",
@@ -336,7 +352,6 @@ class OutlinerPalette(WindowController):
             value=getExtensionDefault(f"{outlinePaletteDefaultKey}.filterDoubles", True),
             callback=self.parametersTextChanged
         )
-
         self.w.open()
 
     def started(self):
@@ -396,6 +411,12 @@ class OutlinerPalette(WindowController):
             sender.set(value)
         self.parametersChanged()
 
+    def expandChangedCallback(self, sender):
+        expand = self.w.expandInLayer.get()
+        setExtensionDefault(f"{outlinePaletteDefaultKey}.expandInLayer", expand)
+        setExtensionDefault(f"{outlinePaletteDefaultKey}.expandLayerName", self.w.expandLayerName.get())
+        self.w.expandLayerName.enable(expand)
+
     def parametersTextChanged(self, sender):
         value = sender.get()
         try:
@@ -453,14 +474,19 @@ class OutlinerPalette(WindowController):
         glyph = CurrentGlyph()
         preserveComponents = bool(self.w.preserveComponents.get())
         self.expandGlyph(glyph, preserveComponents)
-        self.w.preview.set(False)
-        self.previewCallback(self.w.preview)
+        if not self.w.expandInLayer.get():
+            self.w.preview.set(False)
+            self.previewCallback(self.w.preview)
 
     def expandGlyph(self, glyph, preserveComponents=True):
-        glyph.prepareUndo("Outline")
-
         outline = calculate(glyph, self.getOptions(), preserveComponents)
 
+        if self.w.expandInLayer.get():
+            layerName = self.w.expandLayerName.get()
+            if layerName:
+                glyph = glyph.getLayer(layerName)
+
+        glyph.prepareUndo("Outline")
         glyph.clearContours()
         outline.drawPoints(glyph.getPointPen())
 
