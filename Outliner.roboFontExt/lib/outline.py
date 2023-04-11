@@ -1,49 +1,76 @@
-import vanilla
-import AppKit
-
-from lib.tools.bezierTools import roundValue
+import ezui
+from fontTools.misc.arrayTools import calcBounds
 
 from mojo.roboFont import OpenWindow, CurrentGlyph, CurrentFont
-from mojo.extensions import getExtensionDefault, setExtensionDefault, getExtensionDefaultColor, setExtensionDefaultColor, NSColorToRgba
-from mojo.subscriber import WindowController, Subscriber, registerGlyphEditorSubscriber, unregisterGlyphEditorSubscriber
+from mojo.subscriber import Subscriber, registerGlyphEditorSubscriber, unregisterGlyphEditorSubscriber
+from mojo.extensions import getExtensionDefault, setExtensionDefault
 from mojo.events import postEvent
 
 from outlinePen import OutlinePen
 
 
-outlinePaletteDefaultKey = "com.typemytype.outliner"
+outlinePaletteDefaultKey = "com.typemytype.outliner.v3"
+
+lineJoinOptions = ["Square", "Round", "Butt"]
+endCapOptions = ["Square", "Round", "Butt", "Open"]
 
 
-def calculate(glyph, options, preserveComponents=None):
-    if preserveComponents is not None:
-        options["preserveComponents"] = preserveComponents
+def calculate(glyph, options):
+    cap = endCapOptions[options["endCapPopUpButton"]].lower()
+    if cap == "open":
+        cap = "square"
+    closeOpenPaths = options["endCapPopUpButton"] == 3
 
     pen = OutlinePen(
         glyph.layer,
-        offset=options["offset"],
-        contrast=options["contrast"],
-        contrastAngle=options["contrastAngle"],
-        connection=options["connection"],
-        cap=options["cap"],
-        miterLimit=options["miterLimit"],
-        closeOpenPaths=options["closeOpenPaths"],
-        optimizeCurve=options["optimizeCurve"],
-        preserveComponents=options["preserveComponents"],
-        filterDoubles=options["filterDoubles"]
+        offset=options["strokeWidthField"],
+        contrast=options["strokeContrastField"],
+        contrastAngle=options["strokeContrastAngleField"],
+        connection=lineJoinOptions[options["lineJoinPopUpButton"]].lower(),
+        cap=cap,
+        miterLimit=options["miterLimitField"],
+        closeOpenPaths=closeOpenPaths,
+        optimizeCurve=options["optimizeCurvesCheckbox"],
+        preserveComponents=options["preserveComponentsCheckbox"],
+        filterDoubles=options["optimizeDoublePointsCheckbox"]
     )
 
-    glyph.draw(pen)
+    if options["applyToRadioButtons"] == 3:
+        # only apply on selected contours/components
+        for contour in glyph:
+            if contour.selected:
+                contour.draw(pen)
+        for components in glyph.components:
+            if component.selected:
+                component.draw(pen)
+    else:
+        glyph.draw(pen)
 
     pen.drawSettings(
-        drawOriginal=options["addOriginal"],
-        drawInner=options["addInner"],
-        drawOuter=options["addOuter"]
+        drawOriginal=options["outputStrokeSourceCheckbox"],
+        drawInner=options["outputStrokeLeftCheckbox"],
+        drawOuter=options["outputStrokeRightCheckbox"]
     )
 
     result = pen.getGlyph()
-    if options["keepBounds"]:
+    if options["preserveBoundsCheckbox"]:
         if glyph.bounds and result.bounds:
-            minx1, miny1, maxx1, maxy1 = glyph.bounds
+            if options["applyToRadioButtons"] == 3:
+                # only apply on selected contours/components
+                bounds = []
+                for contour in glyph:
+                    if contour.selected and contour.bounds:
+                        selectedMinx, selectedMiny, selectedMaxx, selectedMaxy = contour.bounds
+                        bounds.append((selectedMinx, selectedMiny))
+                        bounds.append((selectedMaxx, selectedMaxy))
+                for components in glyph.components:
+                    if component.selected and component.bounds:
+                        selectedMinx, selectedMiny, selectedMaxx, selectedMaxy = component.bounds
+                        bounds.append((selectedMinx, selectedMiny))
+                        bounds.append((selectedMaxx, selectedMaxy))
+                minx1, miny1, maxx1, maxy1 = calcBounds(bounds)
+            else:
+                minx1, miny1, maxx1, maxy1 = glyph.bounds
             minx2, miny2, maxx2, maxy2 = result.bounds
 
             h1 = maxy1 - miny1
@@ -90,11 +117,14 @@ class OutlinerGlyphEditor(Subscriber):
     def glyphEditorGlyphDidChangeOutline(self, info):
         self.updateOutline(info["glyph"])
 
+    def glyphDidChangeSelection(self, info):
+        self.updateOutline(info["glyph"])
+
     def updateDisplay(self):
         if self.controller:
             displayOptions = self.controller.getDisplayOptions()
             r, g, b, a = displayOptions["color"]
-            self.path.setVisible(displayOptions["preview"])
+            self.path.setVisible(displayOptions["shouldFill"] or displayOptions["shouldStroke"])
             with self.path.propertyGroup():
                 if displayOptions["shouldFill"]:
                     self.path.setFillColor((r, g, b, a))
@@ -122,390 +152,218 @@ class OutlinerGlyphEditor(Subscriber):
             self.path.setPath(None)
 
 
-class OutlinerPalette(WindowController):
-
-    # debug = True
+class OutlinerWindowController(ezui.WindowController):
 
     def build(self):
-        self.w = vanilla.FloatingWindow((300, 560), "Outline Palette")
+        content = """
+        = TwoColumnForm
 
-        y = 5
-        middle = 135
-        textMiddle = middle - 27
-        y += 10
-        self.w._tickness = vanilla.TextBox((0, y - 3, textMiddle, 17), 'Thickness:', alignment="right")
+        : Stroke Width:
+        --X-- [__]                        @strokeWidthField
 
-        ticknessValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.offset", 10)
+        : Stroke Contrast:
+        --X-- [__]                        @strokeContrastField
 
-        self.w.tickness = vanilla.Slider(
-            (middle, y, -50, 15),
-            minValue=1,
-            maxValue=200,
-            callback=self.parametersChanged,
-            value=ticknessValue
+        : Stroke Contrast Angle:
+        --X-- [__]                        @strokeContrastAngleField
+
+        : Miter Limit:
+        --X-- [__]                        @miterLimitField
+
+        : Line Join:
+        ( ...)                            @lineJoinPopUpButton
+
+        : End Cap:
+        ( ...)                            @endCapPopUpButton
+
+        : Output Strokes:
+        [ ] Source                        @outputStrokeSourceCheckbox
+        [X] Left                          @outputStrokeLeftCheckbox
+        [X] Right                         @outputStrokeRightCheckbox
+
+        : Preserve:
+        [X] Components                    @preserveComponentsCheckbox
+        [ ] Bounds                        @preserveBoundsCheckbox
+
+        : Optimize:
+        [ ] Curves                        @optimizeCurvesCheckbox
+        [X] Double Points                 @optimizeDoublePointsCheckbox
+
+        : Apply To:
+        ( ) All Glyphs                    @applyToRadioButtons
+        ( ) Selected Glyphs
+        (X) Current Glyph
+        ( ) Current Glyph Selection
+
+        : Outline in Layer:
+        [_  _]                            @outputLayerField
+
+        =---=
+
+        (( Preview ...))                  @previewPullDownButton
+        * ColorWell                       @previewColorWell
+        ( Outline )                       @outlineButton
+        """
+        maxStrokeWidth = 500
+        descriptionData = dict(
+            content=dict(
+                itemColumnWidth=175
+            ),
+            strokeWidthField=dict(
+                valueType="integer",
+                value=20,
+                minValue=1,
+                maxValue=maxStrokeWidth
+            ),
+            strokeContrastField=dict(
+                valueType="integer",
+                value=0,
+                minValue=0,
+                maxValue=maxStrokeWidth
+            ),
+            strokeContrastAngleField=dict(
+                valueType="float",
+                value=0,
+                minValue=0,
+                maxValue=360
+            ),
+            miterLimitField=dict(
+                valueType="integer",
+                value=0,
+                minValue=0,
+                maxValue=maxStrokeWidth
+            ),
+            lineJoinPopUpButton=dict(
+                items=lineJoinOptions,
+                selected=0
+            ),
+            endCapPopUpButton=dict(
+                items=endCapOptions,
+                selected=0
+            ),
+            outputStrokeSourceCheckbox=dict(),
+            outputStrokeLeftCheckbox=dict(),
+            outputStrokeRightCheckbox=dict(),
+            preserveComponentsCheckbox=dict(),
+            preserveBoundsCheckbox=dict(),
+            optimizeCurvesCheckbox=dict(),
+            optimizeDoublePointsCheckbox=dict(),
+            applyToRadioButtons=dict(),
+            outputLayerComboBox=dict(),
+            previewPullDownButton=dict(
+                itemDescriptions=[
+                    dict(
+                        identifier="fillMenuItem",
+                        text="Fill",
+                        state=getExtensionDefault(f"{outlinePaletteDefaultKey}.previewFill", True)
+                    ),
+                    dict(
+                        identifier="strokeMenuItem",
+                        text="Stroke",
+                        state=getExtensionDefault(f"{outlinePaletteDefaultKey}.previewStroke", False)
+                    ),
+                ],
+                gravity="leading"
+            ),
+            previewColorWell=dict(
+                width=50,
+                gravity="leading",
+                color=getExtensionDefault(f"{outlinePaletteDefaultKey}.previewColor", (0, 1, 1, .8))
+            ),
+            outlineButton=dict(),
         )
-        self.w.ticknessText = vanilla.EditText(
-            (-40, y, -10, 17),
-            ticknessValue,
-            callback=self.parametersTextChanged,
-            sizeStyle="small"
-        )
-        y += 33
-        self.w._contrast = vanilla.TextBox((0, y - 3, textMiddle, 17), 'Contrast:', alignment="right")
-
-        contrastValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.contrast", 0)
-
-        self.w.contrast = vanilla.Slider(
-            (middle, y, -50, 15),
-            minValue=0,
-            maxValue=200,
-            callback=self.parametersChanged,
-            value=contrastValue
-        )
-        self.w.contrastText = vanilla.EditText(
-            (-40, y, -10, 17),
-            contrastValue,
-            callback=self.parametersTextChanged,
-            sizeStyle="small"
-        )
-        y += 33
-        self.w._contrastAngle = vanilla.TextBox((0, y - 3, textMiddle, 17), 'Contrast Angle:', alignment="right")
-
-        contrastAngleValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.contrastAngle", 0)
-
-        self.w.contrastAngle = vanilla.Slider(
-            (middle, y - 10, 30, 30),
-            minValue=0,
-            maxValue=360,
-            callback=self.contrastAngleCallback,
-            value=contrastAngleValue
-        )
-        self.w.contrastAngle.getNSSlider().cell().setSliderType_(AppKit.NSCircularSlider)
-
-        self.w.contrastAngleText = vanilla.EditText(
-            (-40, y, -10, 17),
-            contrastAngleValue,
-            callback=self.parametersTextChanged,
-            sizeStyle="small"
-        )
-
-        y += 33
-
-        self.w._miterLimit = vanilla.TextBox((0, y - 3, textMiddle, 17), 'MiterLimit:', alignment="right")
-
-        connectmiterLimitValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.connectmiterLimit", True)
-
-        self.w.connectmiterLimit = vanilla.CheckBox(
-            (middle-22, y - 3, 20, 17),
-            "",
-            callback=self.connectmiterLimit,
-            value=connectmiterLimitValue
-        )
-
-        miterLimitValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.miterLimit", 10)
-
-        self.w.miterLimit = vanilla.Slider(
-            (middle, y, -50, 15),
-            minValue=1,
-            maxValue=200,
-            callback=self.parametersChanged,
-            value=miterLimitValue
-        )
-        self.w.miterLimitText = vanilla.EditText(
-            (-40, y, -10, 17),
-            miterLimitValue,
-            callback=self.parametersTextChanged,
-            sizeStyle="small"
-        )
-
-        self.w.miterLimit.enable(not connectmiterLimitValue)
-        self.w.miterLimitText.enable(not connectmiterLimitValue)
-
-        y += 30
-
-        cornerAndCap = ["Square", "Round", "Butt"]
-
-        self.w._corner = vanilla.TextBox((0, y, textMiddle, 17), 'Corner:', alignment="right")
-        self.w.corner = vanilla.PopUpButton((middle - 2, y - 2, -48, 22), cornerAndCap, callback=self.parametersTextChanged)
-
-        y += 30
-
-        self.w._cap = vanilla.TextBox((0, y, textMiddle, 17), 'Cap:', alignment="right")
-        useCapValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.closeOpenPath", False)
-        self.w.useCap = vanilla.CheckBox(
-            (middle - 22, y, 20, 17),
-            "",
-            callback=self.useCapCallback,
-            value=useCapValue
-        )
-        self.w.cap = vanilla.PopUpButton((middle - 2, y - 2, -48, 22), cornerAndCap, callback=self.parametersTextChanged)
-        self.w.cap.enable(useCapValue)
-
-        cornerValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.corner", "Square")
-        if cornerValue in cornerAndCap:
-            self.w.corner.set(cornerAndCap.index(cornerValue))
-
-        capValue = getExtensionDefault(f"{outlinePaletteDefaultKey}.cap", "Square")
-        if capValue in cornerAndCap:
-            self.w.cap.set(cornerAndCap.index(capValue))
-
-        y += 33
-
-        self.w.keepBounds = vanilla.CheckBox(
-            (middle - 3, y, middle, 22),
-            "Keep Bounds",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.keepBounds", False),
-            callback=self.parametersTextChanged
-        )
-        y += 30
-        self.w.optimizeCurve = vanilla.CheckBox(
-            (middle - 3, y, middle, 22),
-            "Optimize Curve",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.optimizeCurve", False),
-            callback=self.parametersTextChanged
-        )
-        y += 30
-        self.w.addOriginal = vanilla.CheckBox(
-            (middle - 3, y, middle, 22),
-            "Add Source",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.addOriginal", False),
-            callback=self.parametersTextChanged
-        )
-        y += 30
-        self.w.addInner = vanilla.CheckBox(
-            (middle - 3, y, middle, 22),
-            "Add Left",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.addInner", True),
-            callback=self.parametersTextChanged
-        )
-        y += 30
-        self.w.addOuter = vanilla.CheckBox(
-            (middle - 3, y, middle, 22),
-            "Add Right",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.addOuter", True),
-            callback=self.parametersTextChanged
-        )
-        y += 35
-        self.w.preview = vanilla.CheckBox(
-            (middle - 3, y, middle, 22),
-            "Preview",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.preview", True),
-            callback=self.previewCallback
-        )
-        y += 30
-        self.w.fill = vanilla.CheckBox(
-            (middle - 3 + 10, y, middle, 22),
-            "Fill",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.fill", False),
-            callback=self.fillCallback, sizeStyle="small"
-        )
-        y += 25
-        self.w.stroke = vanilla.CheckBox(
-            (middle - 3 + 10, y, middle, 22),
-            "Stroke",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.stroke", True),
-            callback=self.strokeCallback, sizeStyle="small"
+        self.w = ezui.EZPanel(
+            content=content,
+            descriptionData=descriptionData,
+            controller=self,
+            title="Outliner"
         )
 
-        color = AppKit.NSColor.colorWithCalibratedRed_green_blue_alpha_(0, 1, 1, .8)
-
-        self.w.color = vanilla.ColorWell(
-            ((middle - 5) * 1.7, y - 33, -10, 60),
-            color=getExtensionDefaultColor(f"{outlinePaletteDefaultKey}.color", color),
-            callback=self.colorCallback
-        )
-
-        b = -105
-        self.w.apply = vanilla.Button((-70, b, -10, 22), "Expand", self.expand, sizeStyle="small")
-        self.w.applyNewFont = vanilla.Button((-190, b, -80, 22), "Expand Selection", self.expandSelection, sizeStyle="small")
-        self.w.applySelection = vanilla.Button((-290, b, -200, 22), "Expand Font", self.expandFont, sizeStyle="small")
-
-        b += 30
-        self.w.expandInLayer = vanilla.CheckBox(
-            (10, b, -10, 22),
-            "Expand In Layer",
-            sizeStyle="small",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.expandInLayer", False),
-            callback=self.expandChangedCallback
-        )
-        self.w.expandLayerName = vanilla.EditText(
-            (120, b, 100, 18),
-            getExtensionDefault(f"{outlinePaletteDefaultKey}.expandLayerName", "outlined"),
-            sizeStyle="small",
-            callback=self.expandChangedCallback
-        )
-        self.w.expandLayerName.enable(getExtensionDefault(f"{outlinePaletteDefaultKey}.expandInLayer", False))
-
-        b += 25
-        self.w.preserveComponents = vanilla.CheckBox(
-            (10, b, -10, 22),
-            "Preserve Components",
-            sizeStyle="small",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.preserveComponents", False),
-            callback=self.parametersTextChanged
-        )
-        b += 25
-        self.w.filterDoubles = vanilla.CheckBox(
-            (10, b, -10, 22),
-            "Filter Double points",
-            sizeStyle="small",
-            value=getExtensionDefault(f"{outlinePaletteDefaultKey}.filterDoubles", True),
-            callback=self.parametersTextChanged
-        )
-        self.w.open()
+        defaults = getExtensionDefault(outlinePaletteDefaultKey, dict())
+        self.w.setItemValues(defaults)
 
     def started(self):
+        self.w.open()
         OutlinerGlyphEditor.controller = self
         registerGlyphEditorSubscriber(OutlinerGlyphEditor)
 
-    # def destroy(self):
-    def windowWillClose(self, sender):
+    def destroy(self):
         unregisterGlyphEditorSubscriber(OutlinerGlyphEditor)
         OutlinerGlyphEditor.controller = None
 
     def getOptions(self):
-        return dict(
-            offset=int(self.w.tickness.get()),
-            contrast=int(self.w.contrast.get()),
-            contrastAngle=int(self.w.contrastAngle.get()),
-            keepBounds=self.w.keepBounds.get(),
-            preserveComponents=bool(self.w.preserveComponents.get()),
-            filterDoubles=bool(self.w.filterDoubles.get()),
-            connection=self.w.corner.getItems()[self.w.corner.get()],
-            cap=self.w.cap.getItems()[self.w.cap.get()],
-            closeOpenPaths=self.w.useCap.get(),
-            miterLimit=int(self.w.miterLimit.get()),
-            optimizeCurve=self.w.optimizeCurve.get(),
-            addOriginal=self.w.addOriginal.get(),
-            addInner=self.w.addInner.get(),
-            addOuter=self.w.addOuter.get(),
-        )
+        return self.w.getItemValues()
 
     def getDisplayOptions(self):
+        previewPullDownButton = self.w.getItem("previewPullDownButton")
         return dict(
-            preview=self.w.preview.get(),
-            shouldFill=self.w.fill.get(),
-            shouldStroke=self.w.stroke.get(),
-            color=NSColorToRgba(self.w.color.get())
+            shouldFill=previewPullDownButton.getMenuItemState("fillMenuItem"),
+            shouldStroke=previewPullDownButton.getMenuItemState("strokeMenuItem"),
+            color=self.w.getItemValue("previewColorWell")
         )
 
-    # control callbacks
-
-    def connectmiterLimit(self, sender):
-        setExtensionDefault(f"{outlinePaletteDefaultKey}.connectmiterLimit", sender.get())
-        value = not sender.get()
-        self.w.miterLimit.enable(value)
-        self.w.miterLimitText.enable(value)
-        self.parametersChanged()
-
-    def useCapCallback(self, sender):
-        value = sender.get()
-        setExtensionDefault(f"{outlinePaletteDefaultKey}.closeOpenPath", value)
-        self.w.cap.enable(value)
-        self.parametersChanged()
-
-    def contrastAngleCallback(self, sender):
-        if AppKit.NSEvent.modifierFlags() & AppKit.NSShiftKeyMask:
-            value = sender.get()
-            value = roundValue(value, 45)
-            sender.set(value)
-        self.parametersChanged()
-
-    def expandChangedCallback(self, sender):
-        expand = self.w.expandInLayer.get()
-        setExtensionDefault(f"{outlinePaletteDefaultKey}.expandInLayer", expand)
-        setExtensionDefault(f"{outlinePaletteDefaultKey}.expandLayerName", self.w.expandLayerName.get())
-        self.w.expandLayerName.enable(expand)
-
-    def parametersTextChanged(self, sender):
-        value = sender.get()
-        try:
-            value = int(float(value))
-        except ValueError:
-            value = 10
-            sender.set(value)
-
-        self.w.tickness.set(int(self.w.ticknessText.get()))
-        self.w.contrast.set(int(self.w.contrastText.get()))
-        self.w.contrastAngle.set(int(self.w.contrastAngleText.get()))
-        self.parametersChanged()
-
-    def parametersChanged(self, sender=None, glyph=None):
-        options = self.getOptions()
-        if self.w.connectmiterLimit.get():
-            self.w.miterLimit.set(options["offset"])
-
-        for key, value in options.items():
-            setExtensionDefault(f"{outlinePaletteDefaultKey}.{key}", value)
-
-        self.w.ticknessText.set(f"{options['offset']}")
-        self.w.contrastText.set(f"{options['contrast']}")
-        self.w.contrastAngleText.set(f"{options['contrastAngle']}")
-        self.w.miterLimitText.set(f"{options['miterLimit']}")
-
-        postEvent("com.typemytype.outliner.changed")
-
-    def displayParametersChanged(self):
+    def fillMenuItemCallback(self, sender):
+        value = not sender.state()
+        previewPullDownButton = self.w.getItem("previewPullDownButton")
+        previewPullDownButton.setMenuItemState("fillMenuItem", value)
+        setExtensionDefault(f"{outlinePaletteDefaultKey}.previewFill", value)
         postEvent("com.typemytype.outliner.displayChanged")
 
-    def previewCallback(self, sender):
-        value = sender.get()
-        self.w.fill.enable(value)
-        self.w.stroke.enable(value)
-        self.w.color.enable(value)
-        setExtensionDefault(f"{outlinePaletteDefaultKey}.preview", value)
-        self.displayParametersChanged()
+    def strokeMenuItemCallback(self, sender):
+        value = not sender.state()
+        previewPullDownButton = self.w.getItem("previewPullDownButton")
+        previewPullDownButton.setMenuItemState("strokeMenuItem", value)
+        setExtensionDefault(f"{outlinePaletteDefaultKey}.previewStroke", value)
+        postEvent("com.typemytype.outliner.displayChanged")
 
-    def colorCallback(self, sender):
-        setExtensionDefaultColor(f"{outlinePaletteDefaultKey}.color", sender.get())
-        self.displayParametersChanged()
+    def previewColorWellCallback(self, sender):
+        setExtensionDefault(f"{outlinePaletteDefaultKey}.previewColor", sender.get())
+        postEvent("com.typemytype.outliner.displayChanged")
 
-    def fillCallback(self, sender):
-        setExtensionDefault(f"{outlinePaletteDefaultKey}.fill", sender.get()),
-        self.displayParametersChanged()
+    def contentCallback(self, sender):
+        setExtensionDefault(outlinePaletteDefaultKey, sender.getItemValues())
+        postEvent("com.typemytype.outliner.changed")
 
-    def strokeCallback(self, sender):
-        setExtensionDefault(f"{outlinePaletteDefaultKey}.stroke", sender.get()),
-        self.displayParametersChanged()
-
-    # buttons callbacks
-
-    def expand(self, sender):
-        glyph = CurrentGlyph()
-        preserveComponents = bool(self.w.preserveComponents.get())
-        self.expandGlyph(glyph, preserveComponents)
-        if not self.w.expandInLayer.get():
-            self.w.preview.set(False)
-            self.previewCallback(self.w.preview)
-
-    def expandGlyph(self, glyph, preserveComponents=True):
-        outline = calculate(glyph, self.getOptions(), preserveComponents)
-
-        if self.w.expandInLayer.get():
-            layerName = self.w.expandLayerName.get()
-            if layerName:
-                glyph = glyph.getLayer(layerName)
-
-        glyph.prepareUndo("Outline")
-        glyph.clearContours()
-        outline.drawPoints(glyph.getPointPen())
-
-        glyph.round()
-        glyph.performUndo()
-
-    def expandSelection(self, sender):
+    def outlineButtonCallback(self, sender):
+        options = self.getOptions()
+        applyToValue = options["applyToRadioButtons"]
         font = CurrentFont()
-        preserveComponents = bool(self.w.preserveComponents.get())
-        selection = font.selection
-        for glyphName in selection:
-            glyph = font[glyphName]
-            self.expandGlyph(glyph, preserveComponents)
+        glyphs = []
+        if applyToValue == 0:
+            # All Glyphs
+            glyphs = font
+        elif applyToValue == 1:
+            # Selected Glyphs
+            glyphs = [font[glyphName] for glyphName in font.selection]
+        elif applyToValue in [2, 3]:
+            # Current Glyph
+            glyphs = [CurrentGlyph()]
 
-    def expandFont(self, sender):
-        font = CurrentFont()
-        preserveComponents = bool(self.w.preserveComponents.get())
-        for glyph in font:
-            self.expandGlyph(glyph, preserveComponents)
+        for glyph in glyphs:
+            outline = calculate(glyph, options)
+
+            if options["outputLayerField"]:
+                layerName = options["outputLayerField"].strip()
+                if layerName:
+                    glyph = glyph.getLayer(layerName)
+
+            glyph.prepareUndo("Outline")
+
+            if options["applyToRadioButtons"] == 3:
+                for contour in list(glyph):
+                    if contour.selected:
+                        glyph.removeContour(contour)
+                for component in list(glyph.components):
+                    if component.selected:
+                        glyph.removeComponent(component)
+            else:
+                glyph.clearContours()
+                glyph.clearComponents()
+
+            outline.drawPoints(glyph.getPointPen())
+
+            glyph.round()
+            glyph.performUndo()
 
 
-OpenWindow(OutlinerPalette)
+OpenWindow(OutlinerWindowController)
