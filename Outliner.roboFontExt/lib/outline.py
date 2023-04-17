@@ -19,7 +19,7 @@ def calculate(glyph, options):
     cap = endCapOptions[options["endCapPopUpButton"]].lower()
     if cap == "open":
         cap = "square"
-    closeOpenPaths = options["endCapPopUpButton"] == 3
+    closeOpenPaths = options["endCapPopUpButton"] != 3
 
     pen = OutlinePen(
         glyph.layer,
@@ -40,7 +40,7 @@ def calculate(glyph, options):
         for contour in glyph:
             if contour.selected:
                 contour.draw(pen)
-        for components in glyph.components:
+        for component in glyph.components:
             if component.selected:
                 component.draw(pen)
     else:
@@ -63,7 +63,7 @@ def calculate(glyph, options):
                         selectedMinx, selectedMiny, selectedMaxx, selectedMaxy = contour.bounds
                         bounds.append((selectedMinx, selectedMiny))
                         bounds.append((selectedMaxx, selectedMaxy))
-                for components in glyph.components:
+                for component in glyph.components:
                     if component.selected and component.bounds:
                         selectedMinx, selectedMiny, selectedMaxx, selectedMaxy = component.bounds
                         bounds.append((selectedMinx, selectedMiny))
