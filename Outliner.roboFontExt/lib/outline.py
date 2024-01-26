@@ -143,9 +143,11 @@ class OutlinerGlyphEditor(Subscriber):
             glyph = self.getGlyphEditor().getGlyph()
 
         if self.controller:
+            options = self.controller.getOptions()
+            options["preserveComponentsCheckbox"] = False
             result = calculate(
                 glyph=glyph,
-                options=self.controller.getOptions()
+                options=options
             )
             self.path.setPath(result.getRepresentation("merz.CGPath"))
         else:
