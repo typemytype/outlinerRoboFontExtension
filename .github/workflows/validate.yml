@@ -1,7 +1,5 @@
 name: Validate Extension
-
-on:
-  push
+on: [push]
 
 jobs:
   validate:
@@ -22,4 +20,4 @@ jobs:
         run: pip install --user git+https://github.com/typemytype/extensionBundle
 
       - name: Validate extension
-        run: pack_extension --info_path info.yaml --build_path build.yaml
+        run: pack_extension --info_path info.yaml --build_path build.yaml --dest_path ext.roboFontExt
