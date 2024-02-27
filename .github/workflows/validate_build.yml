@@ -1,5 +1,6 @@
 name: Validate and Build the Extension
-on: [push]
+on:
+  push
 
 jobs:
   validate_and_build:
@@ -20,7 +21,6 @@ jobs:
         run: pip install --user git+https://github.com/typemytype/extensionBundle
 
       - name: Build and validate
-        id: build_and_validate
         run: pack_extension --zip
 
       - name: Upload artifact
