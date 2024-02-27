@@ -1,0 +1,24 @@
+name: Validate Extension
+on:
+  push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Setup Python
+        uses: actions/setup-python@v5.0.0
+      
+      - name: Setup Virtual Environment
+        run: |
+          python3 -m venv venv
+          source venv/bin/activate
+          python -c "import sys; print('\n'.join(sys.path))"
+
+      - name: Install dependencies
+        run: |
+          source venv/bin/activate
+          pip install -r ./test-requirements.txt
+          pip install .
+          pip install codecov
