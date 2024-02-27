@@ -1,4 +1,5 @@
 name: Validate Extension
+
 on:
   push
 
@@ -19,6 +20,4 @@ jobs:
       - name: Install dependencies
         run: |
           source venv/bin/activate
-          pip install -r ./test-requirements.txt
           pip install .
-          pip install codecov
