@@ -22,7 +22,7 @@ jobs:
       - name: Build and validate
         id: build_and_validate
         run: pack_extension --zip
-
+#
       - name: Upload artifact
         if: startsWith(github.event.ref, 'refs/tags')
         uses: actions/upload-artifact@v4
