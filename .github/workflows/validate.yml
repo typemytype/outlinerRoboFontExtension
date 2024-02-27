@@ -16,4 +16,4 @@ jobs:
           python-version: '3.9.13'
           cache: 'pip' # caching pip dependencies
 
-      - run: pip install -r git+https://github.com/typemytype/extensionBundle
+      - run: pip install git+https://github.com/typemytype/extensionBundle
