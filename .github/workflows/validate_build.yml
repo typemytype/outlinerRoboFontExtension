@@ -1,0 +1,37 @@
+name: Validate and Build the Extension
+on: [push]
+
+jobs:
+  validate_and_build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9.13'
+
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+
+      - name: Install ExtensionBundle
+        run: pip install --user git+https://github.com/typemytype/extensionBundle
+
+      - name: Build and validate
+        id: build_and_validate
+        run: echo pack_extension --zip_extension >> $EXTENSION_PATH
+
+      - name: Upload artifact
+        if: startsWith(github.event.ref, 'refs/tags')
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build_and_validate.outputs.EXTENSION_PATH }}.zip
+          path: ./${{ steps.build_and_validate.outputs.EXTENSION_PATH }}.zip
+
+      - name: Release extension
+        if: startsWith(github.event.ref, 'refs/tags')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ steps.build_and_validate.outputs.EXTENSION_PATH }}.zip
