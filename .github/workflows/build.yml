@@ -1,0 +1,32 @@
+name: Build Extension
+
+on:
+  push:
+    tags:
+        - "*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9.13'
+
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+
+      - name: Install ExtensionBundle
+        run: pip install --user git+https://github.com/typemytype/extensionBundle
+
+      - name: Build extension
+        run: pack_extension --info_path info.yaml --build_path build.yaml --dest_path Outliner.roboFontExt
+
+      - name: Release extension
+        uses: softprops/action-gh-release@v1
+        with:
+          files: Outliner.roboFontExt
