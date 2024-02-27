@@ -20,3 +20,6 @@ jobs:
 
       - name: Install ExtensionBundle
         run: pip install --user git+https://github.com/typemytype/extensionBundle
+
+      - name: Validate extension
+        run: validate_extension --info_path info.yaml --build_path build.yaml
