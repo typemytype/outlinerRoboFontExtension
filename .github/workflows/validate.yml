@@ -15,4 +15,8 @@ jobs:
         with:
           python-version: '3.9.13'
 
-      - run: pip install git+https://github.com/typemytype/extensionBundle
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      
+      - name: Install ExtensionBundle
+        run: pip install --user git+https://github.com/typemytype/extensionBundle
