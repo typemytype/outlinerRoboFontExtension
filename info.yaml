@@ -1,0 +1,13 @@
+name: Outliner
+developer: 'TypeMyType'
+developerURL: https://www.typemytype.com
+launchAtStartUp: true
+mainScript: main.py
+version: '2.5'
+addToMenu:
+- path: outline.py
+  preferredName: Outliner
+  shortKey: ''
+html: false
+requiresVersionMajor: '4'
+requiresVersionMinor: 4b
