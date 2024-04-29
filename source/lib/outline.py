@@ -1,5 +1,6 @@
 import ezui
 from fontTools.misc.arrayTools import calcBounds
+from fontTools.pens.boundsPen import BoundsPen
 
 from mojo.roboFont import OpenWindow, CurrentGlyph, CurrentFont
 from mojo.subscriber import Subscriber, registerGlyphEditorSubscriber, unregisterGlyphEditorSubscriber
@@ -54,7 +55,15 @@ def calculate(glyph, options):
 
     result = pen.getGlyph()
     if options["preserveBoundsCheckbox"]:
-        if glyph.bounds and result.bounds:
+        if result.components:
+            dummyOptions = dict(options)
+            dummyOptions["preserveBoundsCheckbox"] = False
+            dummyOptions["preserveComponentsCheckbox"] = False
+            dummyResult = calculate(glyph, dummyOptions)
+            resultBounds = dummyResult.bounds
+        else:
+            resultBounds = result.bounds
+        if glyph.bounds and resultBounds:
             if options["applyToRadioButtons"] == 3:
                 # only apply on selected contours/components
                 bounds = []
@@ -71,7 +80,8 @@ def calculate(glyph, options):
                 minx1, miny1, maxx1, maxy1 = calcBounds(bounds)
             else:
                 minx1, miny1, maxx1, maxy1 = glyph.bounds
-            minx2, miny2, maxx2, maxy2 = result.bounds
+
+            minx2, miny2, maxx2, maxy2 = resultBounds
 
             h1 = maxy1 - miny1
 
