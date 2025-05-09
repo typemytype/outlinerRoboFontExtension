@@ -3,7 +3,7 @@ developer: 'TypeMyType'
 developerURL: https://www.typemytype.com
 launchAtStartUp: true
 mainScript: main.py
-version: '2.6'
+version: '2.7'
 addToMenu:
 - path: outline.py
   preferredName: Outliner
