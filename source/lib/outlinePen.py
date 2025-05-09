@@ -634,3 +634,46 @@ class OutlinePen(BasePen):
         pointPen = glyph.getPointPen()
         self.drawPoints(pointPen)
         return glyph
+
+
+def outlineContours(
+        contours,
+        outPen,
+        offset=10,
+        contrast=0,
+        contrastAngle=0,
+        connection="square",
+        cap="round",
+        miterLimit=None,
+        closeOpenPaths=True,
+        optimizeCurve=False,
+        preserveComponents=False,
+        filterDoubles=True,
+        drawOriginal=False,
+        drawInner=True,
+        drawOuter=True
+    ):
+    """
+    Outline a list of contours:
+    """
+    pen = OutlinePen(
+        glyphSet=None,
+        offset=offset,
+        contrast=contrast,
+        contrastAngle=contrastAngle,
+        connection=connection,
+        cap=cap,
+        miterLimit=miterLimit,
+        closeOpenPaths=closeOpenPaths,
+        optimizeCurve=optimizeCurve,
+        preserveComponents=preserveComponents,
+        filterDoubles=filterDoubles
+    )
+    for contour in contours:
+        contour.draw(pen)
+    pen.drawSettings(
+        drawOriginal=drawOriginal,
+        drawInner=drawInner,
+        drawOuter=drawOuter
+    )
+    pen.draw(outPen)
